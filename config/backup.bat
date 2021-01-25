@@ -8,8 +8,8 @@ set dossier_sauvegarde=D:\stage\application\data
 rem Voir secure/connect.inc.php
 set dbHost=localhost
 set dbDb=essai_cobtest_2
-set dbUser=root
-set dbPass=root
+set dbUser=....(mettre ici l'identifiant utilisée pour accéder à l'application COBTEST)
+set dbPass=...(mettre ici le mot de passe utilisée)
 
 
 set fichier_sauvegarde=%dossier_sauvegarde%\%dbDb%_backup.sql
