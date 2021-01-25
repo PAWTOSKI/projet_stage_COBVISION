@@ -20,16 +20,15 @@ import dash_html_components as html
 import dash_table
 import requests
 import time
-
+from datetime import datetime
 import plotly
 import plotly.graph_objs as go
 from collections import deque
 import pandas as pd
+import dash_bootstrap_components as dbc
 from sqlalchemy import create_engine
-from datetime import datetime
-import time
+
 import matplotlib.pyplot as plt
-import dash_auth
 from navbar import Navbar
 
 
@@ -40,10 +39,12 @@ def connector_mysql( paquets,identifiant,mot_passe, nom_serveur,nom_BD):
     connector='%s://%s:%s@%s/%s' %(paquets, identifiant, mot_passe, nom_serveur, nom_BD)
     engine=create_engine(connector)
     return engine 
+
 #sql_conn =connector_mysql('mysql+pymysql', 'root', 'root', 'localhost', 'essai_cobtest') 
 #rows=pd.read_sql_query("SELECT num,ID FROM test.LiveStatsFromSQLServer", sql_conn)
+
 connector=connector_mysql('mysql+pymysql', 'root', 'root', 'localhost', 'essai_cobtest_2' )
-print( 'definition objet connector ok')
+
 
 # activation de l'historique des requêtes sur MySQL
 
@@ -51,96 +52,64 @@ connector.execute("UPDATE performance_schema.setup_instruments SET ENABLED = 'YE
 connector.execute("UPDATE performance_schema.setup_consumers SET enabled =1; ")
 
 
-
-
-print('parameters done...')
-
-
 # In[4]:
 
 
-#importation des mots de passe et des utilisateurs
-# enregistrés depuis la base de données
-
-statement="SELECT us.name, us.pass FROM essai_cobtest_2.users as us WHERE us.isglobal=1 and us.isadmin=1 "
-
-list_password=pd.read_sql(statement, connector)
-list_password=[[i,j] for i,j in zip(list_password['name'], list_password['pass']) ]
-print('password imported')
+# instanciation de l'application Dash
+app = dash.Dash(__name__, external_stylesheets = [dbc.themes.UNITED] )
 
 
-# In[39]:
+# In[5]:
 
 
-X=deque(maxlen=30)
-Y=deque(maxlen=30)
-print('containers made...')
+title=html.Div([html.H1(children='Administrateur: Suivi de l"activité de la base de données'),
+               
+               ])
 
 
-# In[40]:
+# In[ ]:
 
 
-columns_fig5=['Thread_id', 'Event_id', 'MESSAGE_TEXT', 'RETURNED_SQLSTATE', 'time_execution']
-columns_fig6=['tables', 'records', 'repetitions', 'id_repetitions', 'values_null', 'id_values_null','fk_unreferenced','id_fk_un']
-labels_fig6=['users', 'scores', 'patients', 'centers']
-columns_fig7=['procedure','last_start', 'last_duration','duration_mean']
-labels_fig7=['delete_centers', 'delete_patients', 'delete_scores', 'delete_users', 'insert_centers', 'insert_patients', 'insert_scores', 'insert_users', 'update_scores', 'update_users', 'patients_actifs', 'scores_actifs', 'select_centers']
-print('variables ok')
 
 
-# In[41]:
+
+# In[6]:
 
 
-name_title = 'Stats from SQL Server'
-app = dash.Dash(__name__ )
-
-# mise en place de la fenêtre d'authenfication
-print('start of athentification...') 
-auth=dash_auth.BasicAuth(app, list_password)
-print('authentification done')
+nav=Navbar()
 
 
-# In[42]:
+# In[7]:
 
 
-#instanciation du layer , avec configuration de l'actualisation de celui sur des périodes de 60 secondes
+fig1=html.Div([ dcc.Graph(
+                    id='graph1',
+                    animate=False,
+                    ), 
+                dcc.Interval(
+                    id= 'update_graph1',
+                    interval=30*1000  # unité de temps: ms                            
+                            )           
+            ])
 
-print('start layer...')
-app.layout = html.Div([ 
-            
-                #titre du menu
+
+# In[8]:
+
+
+fig2=html.Div([  
                 html.Div([
-                    html.H1(children='Cobtest: Tableau de bord de l"activité de la base de données'
-                           )]), 
-    
-                #graphique 1
-                html.Div([
-                    
-                    dcc.Graph( id='graph1',
-                                animate=False
-                                 ), 
-                    dcc.Interval(id='graph_update1',
-                                interval=30*1000            # unité de temps: ms                            
-                                    )
-                        
-                        ]),
-    
-                #graphiques 2_A  et 2_B
-    
-    
-             html.Div([  
-                    html.Div([
-                        dcc.Graph( id='graph2_A',
+                        dcc.Graph( id='graph_2A',
                                     animate=False
-                                  ), 
-                        dcc.Interval( id='graph_update2_A',
-                                        interval=30*1000,   # unité de temps: ms    
+                                    ), 
+                    
+                        dcc.Interval(id='update_graph2A',
+                                    interval=30*1000,   # unité de temps: ms    
                                     )
                             ],
                         style={'width': '39%', 'display': 'inline-block'}
                             ),
                     
-                    html.Div([
+                html.Div([
                         html.P("""\n 
                         Le diagramme de gauche se sert d'une unité de mesure propre à Mysql afin de quantifier la 
                                mémoire octroyé à Mysql : pages. Une page est paramétré par une portion de RAM prédéfini et alloué pour toute opération
@@ -156,164 +125,153 @@ app.layout = html.Div([
                    
     
    
-                    html.Div([
-                        dcc.Graph( id='graph2_B',
-                                   animate=False
-                                 ), 
-                        dcc.Interval( id='graph_update2_B',
+               html.Div([
+                        dcc.Graph( id='graph_2B',
+                                    animate=False
+                                    ), 
+                    
+                        dcc.Interval( id='update_graph2B',
                                         interval=30*1000,   # unité de temps: ms    
                                     )
                             ],
                         style={'width': '39%', 'display': 'inline-block'}
                             )
                     
-                        ]),
-                
-                
-                #graphiques 3  
-               
-                html.Div([
-                    dcc.Graph( id='graph3',
-                                animate=False
-                                ), 
-                     dcc.Interval(id='graph_update3',
-                                    interval=30*1000   # unité de temps: ms   
-                                  ) 
-                        ],
-                     style={'margin':'20px'}
-                        ), 
-                        
-                    
-                         
-                    
-                
-                #graphique 4
-                html.Div([
-                    dcc.Graph(id='graph4',
-                            animate=False
-                             ),
-                    
-                    dcc.Interval(id='graph_update4',
-                                interval=30*1000 ) 
-                        ],
-                        style={'margin':'20px'}
+                        ])
+
+
+# In[9]:
+
+
+fig3=html.Div([
+                dcc.Graph( id='graph3',
+                            animate=False,
                         ),
     
+                dcc.Interval(id='update_graph3',
+                            interval=30*1000   # unité de temps: ms   
+                            )
     
-                #figure 5
-                html.Div([
-                    html.Label("log events erros"
+                ],
+                style={'margin':'20px'}
+                )
+
+
+# In[9]:
+
+
+fig4= html.Div([ 
+                dcc.Graph(id='graph4',
+                                 animate=False
+                                ),
+    
+                dcc.Interval(id='update_graph4',
+                                interval=30*1000 )
+                ],
+                style={'margin':'20px'}
+                )
+
+
+# In[10]:
+
+
+fig5=html.Div([
+                html.Label("log events erros"
                               ),
-                    dash_table.DataTable(id='log_events_errors',
-                                        columns=[{'id':c, 'name':c } for c in columns_fig5 ],      
-                                        data=[{'Thread_id':0,'Event_id': 0, 'MESSAGE_TEXT':0, 'RETURNED_SQLSTATE':0, 'time_execution':0 }]
-                                        ),
-                    dcc.Interval(id='graph_update5',
-                                    interval=30*1000 ),
+                dcc.Interval(id='update_graph5',
+                            interval=30*1000 ),
                     
-                    html.Div([
+                html.Div([
                         html.Div(dcc.Input( id='input_rows', type='number', persistence=True)),
                         html.Button(children='number_rows',id='N_rows'),
                         html.Div(id='container-number-rows', children='entrer le nombre d enregistrements voulus'),
-                            ])
-                        ],
-                        style={'margin':'50px'}
-                        ),
+                            ]),
     
-                #figure 6
-                html.Div([ 
-                    html.Label("log tables metrics"
-                              ),
-                    dash_table.DataTable(id='log_tables_metrics',
-                                                 columns=[{'id':c , 'name':c} for c in columns_fig6]
-                                                ),
-                    html.Div([
-                            dcc.Dropdown(id='choice_tables', 
-                            options=[{'label':i , 'value':i} for i in labels_fig6],
-                            value=labels_fig6, multi=True
-                                        )
-                            ])
-                        ],
-                        style={'margin':'50px'}
-                        ),
+                html.Div(id='output5', 
+                         children=[] )
+                ],
+                style={'margin':'50px'}
+                )
+
+
+# In[11]:
+
+
+fig6=html.Div([ 
+                html.Label("log tables metrics"
+                              ),            
+                 
+                dcc.Dropdown(id='choice_tables', 
+                             options=[{'label':i , 'value':i} for i in ['users', 'scores', 'patients', 'centers'] ],
+                             value=['users', 'scores', 'patients', 'centers'],
+                             multi=True
+                                        ),
     
+                html.Div(id='output6', 
+                         children=[])
     
-                #figure 7
-    
-                html.Div([ 
+                ],      
+                style={'margin':'50px'}
+                )
+            
+
+
+# In[13]:
+
+
+fig7=html.Div([ 
                     html.Label("log procedures common"
                               ),
-                    dash_table.DataTable(id='log_procedures_common',
-                                         columns=[{'id':c , 'name':c} for c in columns_fig7]
-                                        
-                                                ),
+                    
                     html.Div([
                             dcc.Dropdown(id='choice_procedures', 
-                                        options=[{'label':i , 'value':i} for i in labels_fig7],
-                                        value=labels_fig7, multi=True
+                                        options=[{'label':i , 'value':i} for i in ['delete_centers', 'delete_patients', 'delete_scores', 'delete_users', 'insert_centers', 'insert_patients', 'insert_scores', 'insert_users', 'update_scores', 'update_users', 'patients_actifs', 'scores_actifs', 'select_centers']],
+                                        value=['delete_centers', 'delete_patients', 'delete_scores', 'delete_users', 'insert_centers', 'insert_patients', 'insert_scores', 'insert_users', 'update_scores', 'update_users', 'patients_actifs', 'scores_actifs', 'select_centers'],
+                                        multi=True
                                         ),
-                            dcc.Interval(id='graph_update7',
+                            dcc.Interval(id='update_graph7',
                                         interval=30*1000   # unité de temps: ms   
                                   )
-                            ])
+                            ]),
+                    html.Div(id='output7', 
+                         children=[])
+                    
                         ],
                         style={'margin':'50px'}
                         ) 
 
-])   
-                                
-print('layer done')
+
+# In[13]:
 
 
-# In[43]:
+#instanciation du layer , avec configuration de l'actualisation de celui sur des périodes de 60 secondes
 
 
-liste_colonnes=('Com_delete','Com_update','Com_select','Com_insert', 'Com_revoke' ,'Com_call_procedure'
-,'Com_truncate', 'Com_alter_user', 'Com_alter_table' , 'Binlog_cache_disk_use','Queries', 'Slow_queries', 'Binlog_cache_use', 'Binlog_stmt_cache_use'
-,'Binlog_stmt_cache_disk_use', 'Handler_commit', 'Handler_delete', 'Handler_discover', 'Handler_external_lock'
-,'Handler_mrr_init', 'Handler_prepare', 'Handler_read_first', 'Handler_read_key', 'Handler_read_last','Handler_read_next'
-,'Handler_read_prev', 'Handler_read_rnd', 'Handler_read_rnd_next', 'Handler_rollback', 'Handler_savepoint', 'Handler_savepoint_rollback'
-,'Handler_update', 'Handler_write', 'Innodb_buffer_pool_bytes_data', 'Innodb_buffer_pool_pages_free','Innodb_buffer_pool_pages_total'
-,'Threads_connected', 'Threads_running', 'Connections', 'Connection_errors_internal', 'Bytes_received', 'Bytes_sent', 'Aborted_connects', 
-                    'Innodb_buffer_pool_reads', 'Innodb_buffer_pool_read_requests')
-
-
-# In[171]:
-
-
-@app.callback(dash.dependencies.Output('graph1', 'figure'),
-              dash.dependencies.Output('graph2_A', 'figure'),
-              dash.dependencies.Output('graph2_B','figure'),
-              dash.dependencies.Output('graph3', 'figure'),
-              dash.dependencies.Output('graph4', 'figure'),
-              dash.dependencies.Output('log_events_errors', 'data'),
-              dash.dependencies.Output('log_tables_metrics', 'data'),
-              dash.dependencies.Output('log_procedures_common', 'data'),
-              
-            
-              
-              [ 
-                dash.dependencies.Input('graph_update1','n_intervals'),
-                dash.dependencies.Input('graph_update2_A','n_intervals'),
-                dash.dependencies.Input('graph_update2_B','n_intervals'),
-                dash.dependencies.Input('graph_update3','n_intervals'),
-                dash.dependencies.Input('graph_update4','n_intervals'),
-                dash.dependencies.Input('graph_update5','n_intervals'),
-                dash.dependencies.Input('input_rows', 'value'),
-                dash.dependencies.Input('choice_tables', 'value'),
-                dash.dependencies.Input('choice_procedures', 'value'),
-                dash.dependencies.Input('graph_update7','n_intervals'),         
-              ]
-              
-              
-             ) # ici pour assurer le callback, l'entrée 'n_intervals' remplace la fonction Event des versions précédentes
-
-
-
-def graph_update1 ( update1, update2_A, update2_B, update3, update4, update5 ,value, choice_tables, choice_procedures, graph_update7) :
+def App_monitoring():
     
+    layout=html.Div([ 
+                    title,
+                    nav,
+                    fig1,
+                    fig2, 
+                    fig3,
+                    fig4,
+                    fig5,
+                    fig6, 
+                    fig7
+                    ])
+    
+    return layout
 
-# ajout dynamique des relevées de performances(Y) au moment t(X), selon une échelle de 20 valeurs maximales
+app.layout = App_monitoring()
+
+                                
+
+
+# In[1]:
+
+
+"""def update_dataSQL (update_graph0) :
     
     liste_colonnes=('Com_delete','Com_update','Com_select','Com_insert', 'Com_revoke' ,'Com_call_procedure'
 ,'Com_truncate', 'Com_alter_user', 'Com_alter_table' , 'Binlog_cache_disk_use','Queries', 'Slow_queries', 'Binlog_cache_use', 'Binlog_stmt_cache_use'
@@ -324,6 +282,13 @@ def graph_update1 ( update1, update2_A, update2_B, update3, update4, update5 ,va
 ,'Threads_connected', 'Threads_running', 'Connections', 'Connection_errors_internal', 'Bytes_received', 'Bytes_sent', 'Aborted_connects', 
                     'Innodb_buffer_pool_reads', 'Innodb_buffer_pool_read_requests')
 
+    X=deque(maxlen=30)
+    Y=deque(maxlen=30)
+    print('containers made...')
+    
+    
+# ajout dynamique des relevées de performances(Y) au moment t(X), selon une échelle de 20 valeurs maximales
+    
     
     Y.append( pd.read_sql(f'SHOW GLOBAL STATUS WHERE VARIABLE_NAME in {liste_colonnes} or VARIABLE_NAME LIKE "%%HANDLER%%" ',con=connector )['Value'].astype(int).values )
     if len(Y)>1:
@@ -353,37 +318,79 @@ def graph_update1 ( update1, update2_A, update2_B, update3, update4, update5 ,va
     for colonne in dataSQL.columns:
         dataSQL[colonne]=dataSQL[colonne].fillna(dataSQL[colonne].mean() )
         
-        
-    #graphique 1
-   
+    return dataSQL"""
+
+
+# In[ ]:
+
+
+
+
+
+# In[1]:
+
+
+#!! graphique 1
+
+def graph1(update_graph1,dataSQL):
     
-    graph1=go.Figure(layout_title_text='Circulation des flux de données')
+    global connector
+    
+    graph1_=go.Figure(layout_title_text='Circulation des flux de données')
     axe_x=list(dataSQL[0:-1].index)
     axe_y1=list(dataSQL[0:-1]['Bytes_received'].values)
     axe_y2=list(dataSQL[0:-1]['Bytes_sent'].values)
-    graph1.add_trace(go.Scatter(x=axe_x, y=axe_y1 , name='Bytes_received'  ))
-    graph1.add_trace(go.Scatter(x=axe_x, y=axe_y2, name= 'Bytes_sent' ))
+    graph1_.add_trace(go.Scatter(x=axe_x, y=axe_y1 , name='Bytes_received'  ))
+    graph1_.add_trace(go.Scatter(x=axe_x, y=axe_y2, name= 'Bytes_sent' ))
+   
     
- 
     
+    return graph1_
 
 
-       # graphique 2_A
+# In[2]:
+
+
+#!! graphique 2_A
+
+def graph2_A(update_graph2A, dataSQL):
+    
+    global connector
+    
     graph2_A=go.Figure(layout_title_text='Etat de la mémoire allouée par le moteur Innodb')
     graph2_A.add_trace(go.Pie(labels=['nombre de pages totaux','nombre de pages libres'],
                             values=[dataSQL['Innodb_buffer_pool_pages_total'].iloc[-1], dataSQL['Innodb_buffer_pool_pages_free'].iloc[-1]]))
     
+    return graph2_A
     
-    # graphique 2_B 
+
+
+# In[17]:
+
+
+#!! graphique 2_B
+
+def graph2_B(update_graph2B, dataSQL):
+    
+    global connector
     
     efficiency_read=dataSQL['Innodb_buffer_pool_reads'].iloc[-1]/dataSQL['Innodb_buffer_pool_read_requests'].iloc[-1]*100
     graph2_B=go.Figure(layout_title_text='Efficacité de lecture sur la Base de données')
     graph2_B.add_trace(go.Pie(labels=['fréquence de lectures logiques sur disque  ', 'proportion totale lectures logiques'],
                                 values=[ efficiency_read, 100-efficiency_read   ]))
     
+    return graph2_B
+
+
+# In[18]:
+
+
+#!! graphique 3
+
+def graph3(update_graph3, dataSQL):
     
-        
-    # graphique 3
+    global connector
+    
     axe_x=list(dataSQL[0:-1].index)
     dict_temp={'Threads_connected': 'Connexions (Threads) ouvertes' ,'Threads_running':'Connexions actives'} 
     dict_temp.update({'Connections':'Nombre d établissements de connexions', 'Aborted_connects':'tentatives de connexions échouées'})
@@ -393,9 +400,21 @@ def graph_update1 ( update1, update2_A, update2_B, update3, update4, update5 ,va
         current_total=dataSQL[colonne].iloc[-1]
         graph3.add_trace(go.Scatter(x=axe_x, y= list(dataSQL[0:-1][colonne].values)
                                 ,name=f'{dict_temp[colonne]} : {current_total}' ))
+     
     
     
-    #graphique 4
+    return graph3
+
+
+# In[19]:
+
+
+#!! graphique 4
+def graph4(update_graph4, dataSQL) :
+    
+    global connector
+    
+    axe_x=list(dataSQL[0:-1].index)
     dict_temp={'Queries':'requêtes exécutées', 'Slow_queries':'requêtes lentes', 'Com_select':'requêtes "select"'}
     dict_temp.update({'Com_update':'requêtes "update"', 'Com_insert':'requêtes type "insert"' ,'Com_delete':'requêtes "delete"' })
     dict_temp.update({ 'Com_call_procedure':'procedures appelées ',  'Com_truncate':'requêtes "Truncate"', 'Com_alter_table': 'requêtes "alter_table"' })
@@ -405,17 +424,43 @@ def graph_update1 ( update1, update2_A, update2_B, update3, update4, update5 ,va
                                 ,name=dict_temp[i]))
     
     
-    #journal d'évènements
+    return graph4
+
+
+# In[5]:
+
+
+# !! journal d'évènements
   
-   
-    range_=int(value)
+def log_e(update_graph5, input_rows) :
+    global connector
+    
+    range_=int(input_rows)
     start_='DATE_SUB(NOW(), INTERVAL (SELECT VARIABLE_VALUE FROM performance_schema.global_status WHERE VARIABLE_NAME="UPTIME") '
     start_+='- TIMER_START*10e-13 second) AS time_execution'    
     statement=f'select Thread_id , Event_id,MESSAGE_TEXT, RETURNED_SQLSTATE, {start_} from performance_schema.events_statements_history_long '
-    statement+=f"WHERE (ERRORS=1 AND SQL_TEXT NOT LIKE '%%DESCRIBE%%' AND NESTING_EVENT_LEVEL=0) ORDER BY THREAD_ID DESC, EVENT_ID DESC LIMIT {range_};"
-    log_events=pd.read_sql(statement, con=connector).to_dict('records')
+    statement+=f"WHERE SQL_TEXT NOT LIKE '%%DESCRIBE%%' AND "
+    statement+=f"( RETURNED_SQLSTATE BETWEEN 11000 AND 11900 OR (ERRORS=1 AND DIGEST_TEXT is not null )) ORDER BY THREAD_ID DESC, EVENT_ID DESC LIMIT {range_};"
+    log_events=pd.read_sql(statement, con=connector)
+    table_log_events=dash_table.DataTable(id='log_events_errors',
+                                        columns=[{'id':c, 'name':c } for c in log_events.columns ],      
+                                        data=log_events.to_dict('records')
+                                            )
     
-    #journal de tables
+    return table_log_events
+
+
+# In[21]:
+
+
+#!! journal de tables
+def log_t(choice_tables):
+    
+    global connector
+    
+    columns_fig6=['tables', 'records', 'repetitions', 'id_repetitions', 'values_null', 'id_values_null','fk_unreferenced','id_fk_un']
+    labels_fig6=['users', 'scores', 'patients', 'centers']
+    
     
     log_tables=pd.DataFrame(index=columns_fig6, columns=labels_fig6)
     for i in list(choice_tables):
@@ -442,13 +487,28 @@ def graph_update1 ( update1, update2_A, update2_B, update3, update4, update5 ,va
         #insertion des enregistrements de métriques de vérification pour lesquelles 
         #toute liste vide renvoyée est remplacée par 0
         
-        log_tables[i]=[0 if not value else value for value in temp_]
-        
+        log_tables[i]=[0 if not value else value for value in temp_] 
+    log_tables=log_tables.transpose()
+    table_log_tables=dash_table.DataTable(id='log_tables',
+                                         columns=[{'id':c , 'name':c} for c in log_tables.columns],
+                                         data=log_tables.to_dict('records'))  
     
-    log_tables=log_tables.transpose().to_dict('records')
+    return table_log_tables
+
+
+# In[12]:
+
+
+# pour chaue procédure choisi, on extrait à partir des tables systèmes de la BD 
+# la durée moyenne d'exécution, la dernirèe durée enregistrée, ainsi que l'heure de sa dernière exécution
+
+def log_proc(update_graph7, choice_procedures) :
     
-    #journal des performances des procedures
+    global connector
     
+    columns_fig7=['procedure','last_start', 'last_duration','duration_mean']
+    labels_fig7=['delete_centers', 'delete_patients', 'delete_scores', 'delete_users', 'insert_centers', 'insert_patients', 'insert_scores', 'insert_users', 'update_scores', 'update_users', 'patients_actifs', 'scores_actifs', 'select_centers']
+
     log_pro=pd.DataFrame(index=labels_fig7, columns=columns_fig7).transpose()
     for procedure in choice_procedures:
         
@@ -474,32 +534,15 @@ def graph_update1 ( update1, update2_A, update2_B, update3, update4, update5 ,va
         log_pro[procedure]=temp_
 
          
-    log_pro=log_pro.transpose().to_dict('records')
+    log_pro=log_pro.transpose().to_dict('records') 
+    log_pro_table=dash_table.DataTable(id='log_procedures_common',
+                                         columns=[{'id':c , 'name':c} for c in ['procedure','last_start', 'last_duration','duration_mean']   ],
+                                         data=log_pro )    
+    return log_pro_table
+    
+                                      
     #columns_fig6=['tables', 'records', 'repetitions', 'id_repetitions',
     #'values_null', 'id_values_null', 'fk_unreferenced', 'id_fk_un']"""
-        
-        
-    return graph1, graph2_A, graph2_B, graph3, graph4, log_events, log_tables, log_pro
-  
-    
-    
-
-
-# In[45]:
-
-
-if __name__ == "__main__":
-    print("server initialized....")
-    app.run_server(debug=True, host='127.0.0.1', port='37709')
-    
-    
-
-
-# In[156]:
-
-
-#res=requests.get('http://127.0.0.1:37709').status_code
-#res
 
 
 # In[ ]:
@@ -520,86 +563,10 @@ if __name__ == "__main__":
 
 
 
-# In[172]:
-
-
-
-
-
 # In[ ]:
 
 
 
-    
-
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
-
-
-
-
-
-# In[18]:
-
-
-"""graph1=go.Figure(layout_title_text='Circulation des flux de données')
-axe_x=list(dataSQL[0:-1].index)
-axe_y1=list(dataSQL[0:-1]['Bytes_received'].values)
-axe_y2=list(dataSQL[0:-1]['Bytes_sent'].values)
-graph1.add_trace(go.Scatter(x=axe_x, y=axe_y1 , name='Bytes_received'  ))
-   graph1.add_trace(go.Scatter(x=axe_x, y=axe_y2, name= 'Bytes_sent' ))"""
-   
-
-
-# In[ ]:
-
-
-
-
-
-# In[19]:
-
-
-"""
-liste_colonnes=('Binlog_cache_disk_use', 'Binlog_cache_use', 'Binlog_stmt_cache_use','Binlog_stmt_cache_disk_use', 'Handler_commit', 'Handler_delete', 'Handler_discover',
-'Handler_external_lock', 'Handler_mrr_init', 'Handler_prepare', 'Handler_read_first', 'Handler_read_key', 'Handler_read_last',
-'Handler_read_next', 'Handler_read_prev', 'Handler_read_rnd', 'Handler_read_rnd_next', 'Handler_rollback', 'Handler_savepoint',
-'Handler_savepoint_rollback', 'Handler_update', 'Handler_write', 'Innodb_buffer_pool_bytes_data', 'Innodb_buffer_pool_pages_free','Innodb_buffer_pool_pages_total','Threads_connected', 'Threads_running', 'Connections', 'Connection_errors_internal', 'Bytes_received', 'Bytes_sent', 'Aborted_connects')
-connector=connector_mysql('mysql+pymysql', 'root', 'root', 'localhost', 'essai_cobtest_2' )
-Y.append( pd.read_sql(f'SHOW GLOBAL STATUS WHERE VARIABLE_NAME in {liste_colonnes} or VARIABLE_NAME LIKE "%%HANDLER%%" ',con=connector )['Value'].astype(int).values )
-if len(Y)>1:
-        
-        Y[-2]=Y[-1]-Y[-2]
-X.append( datetime.now() )
-
-labels= pd.read_sql(f'SHOW GLOBAL STATUS WHERE VARIABLE_NAME in {liste_colonnes} or VARIABLE_NAME LIKE "%%HANDLER%%" ',con=connector )['Variable_name'].values 
-dataSQL=pd.DataFrame(data=[i for i in Y], columns=labels,  index=X )
-dataSQL=dataSQL.astype(int)
-
-#Calcul de la moyenne des performances, par tranche de 10 secondes
-dataSQL=dataSQL.resample('10S').mean()    
-for colonne in dataSQL.columns:
-    dataSQL[colonne]=dataSQL[colonne].fillna(dataSQL[colonne].mean() )
-    
-graph1=go.Figure(layout_title_text='Circulation des flux de données')
-axe_x=list(dataSQL[0:-1].index)
-axe_y1=list(dataSQL[0:-1]['Bytes_received'].values)
-axe_y2=list(dataSQL[0:-1]['Bytes_sent'].values)
-graph1.add_trace(go.Scatter(x=axe_x, y=axe_y1 , name='Bytes_received'  ))
-graph1.add_trace(go.Scatter(x=axe_x, y=axe_y2, name= 'Bytes_sent' ))
-graph1"""
 
 
 # In[ ]:
@@ -842,10 +809,15 @@ print('graphic definition"s beginning...')"""
 
 
 
-# In[ ]:
+# In[3]:
 
 
+start_='DATE_SUB(NOW(), INTERVAL (SELECT VARIABLE_VALUE FROM performance_schema.global_status WHERE VARIABLE_NAME="UPTIME") '
+start_+='- TIMER_START*10e-13 second) AS time_execution'    
+statement=f'select Thread_id , Event_id,MESSAGE_TEXT, RETURNED_SQLSTATE, {start_} from performance_schema.events_statements_history_long '
+statement+=f'WHERE (ERRORS=1 AND SQL_TEXT NOT LIKE "%DESCRIBE%" AND NESTING_EVENT_LEVEL=0) ORDER BY THREAD_ID DESC, EVENT_ID DESC 5;'
 
+statement
 
 
 # In[ ]:
